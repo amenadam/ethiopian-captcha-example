@@ -1,17 +1,24 @@
 import { useEffect, useState } from "react";
-import { EtCaptcha } from "ethiopian-captcha/react";
+import { EtCaptcha, ClickImage } from "ethiopian-captcha/react";
 
 function App() {
   const [captchaData, setCaptchaData] = useState(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [type, setType] = useState("fidel");
 
   const fetchCaptcha = async () => {
     try {
       setLoading(true);
+      setMessage("loading");
 
       const res = await fetch(
         "https://ethiopian-captcha-example.vercel.app/captcha",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type }),
+        },
       );
       const data = await res.json();
       setCaptchaData(data);
@@ -56,6 +63,11 @@ function App() {
   useEffect(() => {
     fetchCaptcha();
   }, []);
+
+  useEffect(() => {
+    setCaptchaData(null); // reset previous captcha
+    fetchCaptcha(); // fetch new captcha for the selected type
+  }, [type]);
 
   if (!captchaData) return null;
 
@@ -103,21 +115,49 @@ function App() {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-xl shadow-lg max-w-md w-full flex flex-col items-center">
-          <h3 className="text-lg font-semibold mb-4 text-center">Live Demo</h3>
-          <EtCaptcha
-            captcha={captchaData.captcha}
-            captchaId={captchaData.captchaId}
-            loading={loading}
-            onRefresh={fetchCaptcha}
-            onVerify={verifyCaptcha}
-          />
+        <div className="bg-white p-6 rounded-xl shadow-lg max-w-md w-full flex flex-col items-center transition-all">
+          <h3 className="text-lg font-semibold mb-4 text-center ">Live Demo</h3>
+          <div className="flex gap-2 mb-3">
+            <button
+              className={`${type === "fidel" ? "bg-amber-600 text-white" : "bg-gray-300 text-gray-700 "}  px-6 py-1 rounded-lg text-sm`}
+              onClick={() => setType("fidel")}
+            >
+              Fidel
+            </button>
+            <button
+              className={`${type === "click-image" ? "bg-amber-600 text-white" : "bg-gray-300 text-gray-700"}  px-6 py-1 rounded-lg text-sm`}
+              onClick={() => setType("click-image")}
+            >
+              Click-image
+            </button>
+          </div>
+          {type === "fidel" && (
+            <EtCaptcha
+              captcha={
+                Array.isArray(captchaData?.captcha) ? captchaData.captcha : []
+              }
+              captchaId={captchaData.captchaId}
+              loading={loading}
+              onRefresh={fetchCaptcha}
+              onVerify={verifyCaptcha}
+            />
+          )}
+
+          {type === "click-image" && (
+            <ClickImage
+              captcha={captchaData}
+              captchaId={captchaData.captchaId}
+              loading={loading}
+              onRefresh={fetchCaptcha}
+              onVerify={verifyCaptcha}
+            />
+          )}
           <p className="text-center mt-4 text-sm min-h-5">{message}</p>
-          <p className="text-center  text-sm min-h-5">
-            {loading ? "loading" : ""}
-          </p>
+
           <p className="text-xs text-gray-500 text-center mt-2">
-            Enter the Amharic Fidel characters shown above
+            {type === "fidel"
+              ? "Enter the Amharic Fidel characters shown above"
+              : `Click on the required / ${captchaData.captcha}/ item from the image`}
           </p>
         </div>
       </section>

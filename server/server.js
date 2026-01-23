@@ -16,7 +16,11 @@ app.use(express.json());
 app.get("/", (req, res) => {
   res.json({ success: true, message: "API Working..." });
 });
-app.get("/captcha", (req, res) => {
+
+app.post("/captcha", (req, res) => {
+  const { type } = req.body;
+  captchaConfig.type = type;
+  console.log(type);
   res.json(generateCaptcha());
 });
 
