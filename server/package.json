@@ -1,0 +1,9 @@
+{
+  "name": "captcha-test-server",
+  "type": "module",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "ethiopian-captcha": "^1.0.1",
+    "express": "^4.19.0"
+  }
+}
