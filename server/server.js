@@ -12,7 +12,6 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
-app.use("/images", express.static("./assets/images"));
 
 app.get("/", (req, res) => {
   res.json({ success: true, message: "API Working..." });
