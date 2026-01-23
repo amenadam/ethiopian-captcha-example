@@ -69,8 +69,6 @@ function App() {
     fetchCaptcha(); // fetch new captcha for the selected type
   }, [type]);
 
-  if (!captchaData) return null;
-
   return (
     <div className="bg-gray-100 text-gray-800 min-h-screen">
       <section className="w-full min-h-screen flex flex-col lg:flex-row items-center justify-center gap-10 px-6 py-10 lg:px-10">
@@ -119,19 +117,30 @@ function App() {
           <h3 className="text-lg font-semibold mb-4 text-center ">Live Demo</h3>
           <div className="flex gap-2 mb-3">
             <button
+              type="button"
               className={`${type === "fidel" ? "bg-amber-600 text-white" : "bg-gray-300 text-gray-700 "}  px-6 py-1 rounded-lg text-sm`}
-              onClick={() => setType("fidel")}
+              onClick={(e) => {
+                e.preventDefault();
+                setType("fidel");
+              }}
             >
               Fidel
             </button>
             <button
+              type="button"
               className={`${type === "click-image" ? "bg-amber-600 text-white" : "bg-gray-300 text-gray-700"}  px-6 py-1 rounded-lg text-sm`}
-              onClick={() => setType("click-image")}
+              onClick={(e) => {
+                e.preventDefault();
+                setType("click-image");
+              }}
             >
               Click-image
             </button>
           </div>
-          {type === "fidel" && (
+          {loading && (
+            <div className="w-full h-32 bg-gray-100 rounded animate-pulse" />
+          )}
+          {!loading && type === "fidel" && captchaData && (
             <EtCaptcha
               captcha={
                 Array.isArray(captchaData?.captcha) ? captchaData.captcha : []
@@ -143,7 +152,7 @@ function App() {
             />
           )}
 
-          {type === "click-image" && (
+          {!loading && type === "click-image" && captchaData && (
             <ClickImage
               captcha={captchaData}
               captchaId={captchaData.captchaId}
@@ -157,7 +166,9 @@ function App() {
           <p className="text-xs text-gray-500 text-center mt-2">
             {type === "fidel"
               ? "Enter the Amharic Fidel characters shown above"
-              : `Click on the required / ${captchaData.captcha}/ item from the image`}
+              : captchaData
+                ? `Click on the required / ${captchaData.captcha} / item from the image`
+                : "Loading image captcha..."}
           </p>
         </div>
       </section>
