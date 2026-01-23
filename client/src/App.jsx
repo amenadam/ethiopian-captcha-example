@@ -10,7 +10,9 @@ function App() {
     try {
       setLoading(true);
 
-      const res = await fetch("http://localhost:5501/captcha");
+      const res = await fetch(
+        "https://ethiopian-captcha-example.vercel.app/captcha",
+      );
       const data = await res.json();
       setCaptchaData(data);
       setMessage("");
@@ -26,11 +28,14 @@ function App() {
   const verifyCaptcha = async ({ captchaId, input }) => {
     try {
       setLoading(true);
-      const res = await fetch("http://localhost:5501/captcha/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ captchaId, input }),
-      });
+      const res = await fetch(
+        "https://ethiopian-captcha-example.vercel.app/captcha/validate",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ captchaId, input }),
+        },
+      );
 
       const result = await res.json();
 
