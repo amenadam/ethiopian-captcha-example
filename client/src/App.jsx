@@ -1,5 +1,38 @@
 import { useEffect, useState } from "react";
-import { EtCaptcha, ClickImage } from "ethiopian-captcha/react";
+import { EtCaptcha } from "ethiopian-captcha/react";
+
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:5501";
+const TYPES = [
+  ["fidel", "Fidel"],
+  ["geez-math", "Ge'ez math"],
+  ["click-image", "Click-image"],
+];
+
+const serverSnippet = `import { createCaptcha } from "ethiopian-captcha";
+
+const captcha = createCaptcha({ secret: process.env.CAPTCHA_SECRET });
+
+// Generate: "fidel" | "geez-math" | "click-image"
+const challenge = await captcha.generate("fidel");
+// { success, type, captchaId, image, expiresAt }
+
+// Validate (single-use)
+const result = await captcha.validate(challenge.captchaId, userInput);
+
+if (result.success) {
+  console.log("Captcha verified");
+} else {
+  console.log(result.code, result.message);
+}`;
+
+const reactSnippet = `import { EtCaptcha } from "ethiopian-captcha/react";
+
+<EtCaptcha
+  challenge={challenge}
+  loading={loading}
+  onRefresh={fetchChallenge}
+  onVerify={({ captchaId, input }) => verify(captchaId, input)}
+/>`;
 
 function App() {
   const [captchaData, setCaptchaData] = useState(null);
@@ -13,7 +46,7 @@ function App() {
       setMessage("loading");
 
       const res = await fetch(
-        "https://ethiopian-captcha-example.vercel.app/captcha",
+        `${API}/captcha`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -35,34 +68,30 @@ function App() {
   const verifyCaptcha = async ({ captchaId, input }) => {
     try {
       setLoading(true);
-      const res = await fetch(
-        "https://ethiopian-captcha-example.vercel.app/captcha/validate",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ captchaId, input }),
-        },
-      );
-
+      const res = await fetch(`${API}/captcha/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ captchaId, input }),
+      });
       const result = await res.json();
 
-      setMessage(
-        result.success ? "Verified successfully" : `${result.message}`,
-      );
-      setLoading(false);
-
-      // Refresh CAPTCHA after successful verification
       if (result.success) {
+        setMessage("Verified successfully");
         setTimeout(fetchCaptcha, 1500);
+      } else if (result.code === "INCORRECT") {
+        setMessage(`${result.message} (${result.attemptsLeft} left)`);
+        setLoading(false);
+      } else {
+        // expired / too many attempts / invalid: the captcha is used up
+        setMessage(result.message);
+        fetchCaptcha();
       }
     } catch (error) {
       console.error("Error validating captcha ", error);
+      setMessage("API Error");
+      setLoading(false);
     }
   };
-
-  useEffect(() => {
-    fetchCaptcha();
-  }, []);
 
   useEffect(() => {
     setCaptchaData(null); // reset previous captcha
@@ -77,12 +106,12 @@ function App() {
             EthiopianCaptcha 🇪🇹
           </h1>
           <p className="text-lg lg:text-xl mb-6">
-            A lightweight, secure, and extensible CAPTCHA library designed for
-            Ethiopian languages.
+            A lightweight, secure CAPTCHA built for Ethiopian users: Amharic
+            fidel and Ge'ez-numeral challenges, drawn as distorted vector images.
           </p>
           <p className="text-gray-600 mb-8">
-            Starting with Amharic Fidel support. Server-side generation &
-            validation, hashed answers, TTL & attempt limiting.
+            Server-side generation & validation, HMAC-hashed answers,
+            single-use captchas, TTL & attempt limiting.
           </p>
 
           <div className="flex flex-wrap gap-3 justify-center lg:justify-start">
@@ -115,47 +144,24 @@ function App() {
 
         <div className="bg-white p-6 rounded-xl shadow-lg max-w-md w-full flex flex-col items-center transition-all">
           <h3 className="text-lg font-semibold mb-4 text-center ">Live Demo</h3>
-          <div className="flex gap-2 mb-3">
-            <button
-              type="button"
-              className={`${type === "fidel" ? "bg-amber-600 text-white" : "bg-gray-300 text-gray-700 "}  px-6 py-1 rounded-lg text-sm`}
-              onClick={(e) => {
-                e.preventDefault();
-                setType("fidel");
-              }}
-            >
-              Fidel
-            </button>
-            <button
-              type="button"
-              className={`${type === "click-image" ? "bg-amber-600 text-white" : "bg-gray-300 text-gray-700"}  px-6 py-1 rounded-lg text-sm`}
-              onClick={(e) => {
-                e.preventDefault();
-                setType("click-image");
-              }}
-            >
-              Click-image
-            </button>
+          <div className="flex flex-wrap gap-2 mb-3 justify-center">
+            {TYPES.map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={`${type === value ? "bg-amber-600 text-white" : "bg-gray-300 text-gray-700"} px-4 py-1 rounded-lg text-sm`}
+                onClick={() => setType(value)}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-          {loading && (
+          {!captchaData && (
             <div className="w-full h-32 bg-gray-100 rounded animate-pulse" />
           )}
-          {!loading && type === "fidel" && captchaData && (
+          {captchaData?.success && (
             <EtCaptcha
-              captcha={
-                Array.isArray(captchaData?.captcha) ? captchaData.captcha : []
-              }
-              captchaId={captchaData.captchaId}
-              loading={loading}
-              onRefresh={fetchCaptcha}
-              onVerify={verifyCaptcha}
-            />
-          )}
-
-          {!loading && type === "click-image" && captchaData && (
-            <ClickImage
-              captcha={captchaData}
-              captchaId={captchaData.captchaId}
+              challenge={captchaData}
               loading={loading}
               onRefresh={fetchCaptcha}
               onVerify={verifyCaptcha}
@@ -164,11 +170,11 @@ function App() {
           <p className="text-center mt-4 text-sm min-h-5">{message}</p>
 
           <p className="text-xs text-gray-500 text-center mt-2">
-            {type === "fidel"
-              ? "Enter the Amharic Fidel characters shown above"
-              : captchaData
-                ? `Click on the required / ${captchaData.captcha} / item from the image`
-                : "Loading image captcha..."}
+            {type === "fidel" && "Type the Amharic fidel shown in the image"}
+            {type === "geez-math" &&
+              "Solve the sum written in Ge'ez numerals (answer in 1 2 3 or ፩ ፪ ፫)"}
+            {type === "click-image" &&
+              "Click the cell that shows the requested item"}
           </p>
         </div>
       </section>
@@ -238,27 +244,7 @@ function App() {
                 <button
                   onClick={() =>
                     navigator.clipboard
-                      .writeText(`import { generateCaptcha, validateCaptcha } from "ethiopian-captcha";
-
-// Generate CAPTCHA
-const captchaData = generateCaptcha();
-/*
-{
-  success: true,
-  type: "fidel",
-  captchaId: "ETH-...",
-  captcha: ["ኩ", "ቴ", "ኃ", "ሀ"]
-}
-*/
-
-// Validate CAPTCHA
-const result = validateCaptcha(captchaData.captchaId, "ኩቴኃሀ");
-
-if (result.success) {
-  console.log("Captcha verified");
-} else {
-  console.log(result.message);
-}`)
+                      .writeText(serverSnippet)
                   }
                   className="text-gray-400 hover:text-white transition"
                   title="Copy to clipboard"
@@ -275,92 +261,7 @@ if (result.success) {
                 </button>
               </div>
               <pre className="p-6 overflow-x-auto">
-                <code className="text-gray-100 font-mono text-sm lg:text-base leading-relaxed">
-                  <span className="text-purple-400">import</span>
-                  <span className="text-gray-300"> {"{"} </span>
-                  <span className="text-yellow-300">generateCaptcha</span>
-                  <span className="text-gray-300">, </span>
-                  <span className="text-yellow-300">validateCaptcha</span>
-                  <span className="text-gray-300"> {"}"} </span>
-                  <span className="text-purple-400">from</span>
-                  <span className="text-gray-300"> </span>
-                  <span className="text-green-400">"ethiopian-captcha"</span>
-                  <span className="text-gray-300">;</span>
-                  <br />
-                  <br />
-                  <span className="text-gray-500">// Generate CAPTCHA</span>
-                  <br />
-                  <span className="text-purple-400">const</span>
-                  <span className="text-gray-300"> captchaData = </span>
-                  <span className="text-yellow-300">generateCaptcha</span>
-                  <span className="text-gray-300">();</span>
-                  <br />
-                  <span className="text-gray-500">/*</span>
-                  <br />
-                  <span className="text-gray-500">{`{`}</span>
-                  <br />
-                  <span className="text-gray-500">
-                    {"  "}
-                    success: true,
-                  </span>
-                  <br />
-                  <span className="text-gray-500">
-                    {"  "}
-                    type: "fidel",
-                  </span>
-                  <br />
-                  <span className="text-gray-500">
-                    {"  "}
-                    captchaId: "ETH-...",
-                  </span>
-                  <br />
-                  <span className="text-gray-500">
-                    {"  "}
-                    captcha: ["ኩ", "ቴ", "ኃ", "ሀ"]
-                  </span>
-                  <br />
-                  <span className="text-gray-500">{`}`}</span>
-                  <br />
-                  <span className="text-gray-500">*/</span>
-                  <br />
-                  <br />
-                  <span className="text-gray-500">// Validate CAPTCHA</span>
-                  <br />
-                  <span className="text-purple-400">const</span>
-                  <span className="text-gray-300"> result = </span>
-                  <span className="text-yellow-300">validateCaptcha</span>
-                  <span className="text-gray-300">
-                    (captchaData.captchaId,{" "}
-                  </span>
-                  <span className="text-green-400">"ኩቴኃሀ"</span>
-                  <span className="text-gray-300">);</span>
-                  <br />
-                  <br />
-                  <span className="text-purple-400">if</span>
-                  <span className="text-gray-300"> (result.success) {`{`}</span>
-                  <br />
-                  <span className="text-gray-300">
-                    {"  "}
-                    console.
-                  </span>
-                  <span className="text-yellow-300">log</span>
-                  <span className="text-gray-300">(</span>
-                  <span className="text-green-400">"Captcha verified"</span>
-                  <span className="text-gray-300">);</span>
-                  <br />
-                  <span className="text-gray-300">{`}`}</span>
-                  <span className="text-purple-400"> else</span>
-                  <span className="text-gray-300"> {`{`}</span>
-                  <br />
-                  <span className="text-gray-300">
-                    {"  "}
-                    console.
-                  </span>
-                  <span className="text-yellow-300">log</span>
-                  <span className="text-gray-300">(result.message);</span>
-                  <br />
-                  <span className="text-gray-300">{`}`}</span>
-                </code>
+                <code className="text-gray-100 font-mono text-sm lg:text-base leading-relaxed whitespace-pre">{serverSnippet}</code>
               </pre>
             </div>
           </div>
@@ -388,17 +289,7 @@ if (result.success) {
               <button
                 onClick={() =>
                   navigator.clipboard
-                    .writeText(`import { EtCaptcha } from "ethiopian-captcha/react";
-
-<EtCaptcha
-  captcha={captcha}
-  captchaId={captchaId}
-  loading={loading}
-  onRefresh={fetchNewCaptcha}
-  onVerify={({ captchaId, input }) => {
-    validateCaptcha({ captchaId, input });
-  }}
-/>`)
+                    .writeText(reactSnippet)
                 }
                 className="text-gray-400 hover:text-white transition"
                 title="Copy to clipboard"
@@ -415,67 +306,7 @@ if (result.success) {
               </button>
             </div>
             <pre className="p-6 overflow-x-auto">
-              <code className="text-gray-100 font-mono text-sm lg:text-base leading-relaxed">
-                <span className="text-purple-400">import</span>
-                <span className="text-gray-300"> {"{"} </span>
-                <span className="text-yellow-300">EtCaptcha</span>
-                <span className="text-gray-300"> {"}"}</span>
-                <span className="text-purple-400">from</span>
-                <span className="text-gray-300"> </span>
-                <span className="text-green-400">
-                  "ethiopian-captcha/react"
-                </span>
-                <span className="text-gray-300">;</span>
-                <br />
-                <br />
-                <span className="text-gray-300">&lt;</span>
-                <span className="text-yellow-300">EtCaptcha</span>
-                <br />
-                <span className="text-gray-300"> </span>
-                <span className="text-cyan-400">captcha</span>
-                <span className="text-gray-300">=</span>
-                <span className="text-orange-400">{`{`}</span>
-                <span className="text-gray-300">captcha</span>
-                <span className="text-orange-400">{`}`}</span>
-                <br />
-                <span className="text-gray-300"> </span>
-                <span className="text-cyan-400">captchaId</span>
-                <span className="text-gray-300">=</span>
-                <span className="text-orange-400">{`{`}</span>
-                <span className="text-gray-300">captchaId</span>
-                <span className="text-orange-400">{`}`}</span>
-                <br />
-                <span className="text-gray-300"> </span>
-                <span className="text-cyan-400">loading</span>
-                <span className="text-gray-300">=</span>
-                <span className="text-orange-400">{`{`}</span>
-                <span className="text-gray-300">loading</span>
-                <span className="text-orange-400">{`}`}</span>
-                <br />
-                <span className="text-gray-300"> </span>
-                <span className="text-cyan-400">onRefresh</span>
-                <span className="text-gray-300">=</span>
-                <span className="text-orange-400">{`{`}</span>
-                <span className="text-gray-300">fetchNewCaptcha</span>
-                <span className="text-orange-400">{`}`}</span>
-                <br />
-                <span className="text-gray-300"> </span>
-                <span className="text-cyan-400">onVerify</span>
-                <span className="text-gray-300">=</span>
-                <span className="text-orange-400">{`{`}</span>
-                <span className="text-gray-300">{`({ captchaId, input }) => {`}</span>
-                <br />
-                <span className="text-gray-300"> </span>
-                <span className="text-yellow-300">validateCaptcha</span>
-                <span className="text-gray-300">
-                  ({`{ captchaId, input }`});
-                </span>
-                <br />
-                <span className="text-gray-300"> {`}}`}</span>
-                <span className="text-orange-400">{`}`}</span>
-                <br />
-                <span className="text-gray-300">/&gt;</span>
-              </code>
+              <code className="text-gray-100 font-mono text-sm lg:text-base leading-relaxed whitespace-pre">{reactSnippet}</code>
             </pre>
           </div>
 
@@ -485,9 +316,9 @@ if (result.success) {
             </h4>
             <ul className="list-disc pl-5 text-amber-700 space-y-2">
               <li>The React component does NOT handle validation logic</li>
-              <li>Does NOT make HTTP requests</li>
-              <li>Is fully controlled by props</li>
-              <li>You must implement server-side validation</li>
+              <li>It makes no HTTP requests; it is fully controlled by props</li>
+              <li>generate() and validate() are async and run on your server</li>
+              <li>Set a secret (and a shared store if you run several servers)</li>
             </ul>
           </div>
         </div>
@@ -502,7 +333,7 @@ if (result.success) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl">
           <div className="bg-gray-50 p-6 rounded-xl shadow text-center border border-gray-200">
             <div className="text-2xl mb-3">🇪🇹</div>
-            <h3 className="font-semibold mb-2">Amharic Fidel Support</h3>
+            <h3 className="font-semibold mb-2">Fidel & Ge'ez Numerals</h3>
             <p className="text-sm text-gray-600">
               Native support for Ethiopian languages
             </p>
@@ -527,7 +358,7 @@ if (result.success) {
             </div>
             <h3 className="font-semibold mb-2">Secure by Design</h3>
             <p className="text-sm text-gray-600">
-              Hashed answers, no plaintext storage
+              HMAC-hashed answers, single-use, no text in the image
             </p>
           </div>
 
